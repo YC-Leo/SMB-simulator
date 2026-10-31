@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: SMB Simulator Suite
+message: If you use this software, please cite it using this metadata.
+type: software
+authors:
+  - given-names: Yadong (Leo)
+    family-names: Chiang
+version: 1.0.0
+license: MIT
+repository-code: https://github.com/YC-Leo/SMB-simulator
+url: https://github.com/YC-Leo/SMB-simulator
+date-released: 2026-10-30
