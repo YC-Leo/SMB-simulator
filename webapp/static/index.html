@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMB Simulator Suite</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%232a78d6' stroke-width='5' stroke-dasharray='6 2.6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" class="logo" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="6 2.64"/></svg>
+    <div>
+      <div class="brand-name">SMB Simulator Suite</div>
+      <div class="brand-sub">Simulated moving bed chromatography · cyclic steady state</div>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span class="mode-pill" id="modePill"></span>
+    <button class="btn ghost" id="themeBtn" title="Switch light / dark theme" aria-label="Switch theme">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ============================== SETUP ============================== -->
+  <aside class="setup" id="setup">
+    <div class="setup-scroll">
+
+    <details class="group" open>
+      <summary><span class="g-title">1 · Case</span><span class="g-chip" id="chipCase"></span></summary>
+      <div class="g-body">
+        <select id="presetSel" aria-label="Load a test case"></select>
+        <p class="hint" id="presetHint"></p>
+        <div class="row">
+          <button class="btn small" id="resetBtn">Reset</button>
+          <button class="btn small" id="exportBtn">Export setup</button>
+          <label class="btn small file">Import setup<input type="file" id="importFile" accept=".json,application/json"></label>
+        </div>
+      </div>
+    </details>
+
+    <details class="group" open>
+      <summary><span class="g-title">2 · Model</span><span class="g-chip" id="chipModel"></span></summary>
+      <div class="g-body">
+        <h3>Numerical mode</h3>
+        <div class="seg" id="schemeSeg" role="radiogroup" aria-label="Numerical mode">
+          <button data-v="original" role="radio">Original</button>
+          <button data-v="conservative" role="radio">Conservative</button>
+        </div>
+        <p class="hint" id="schemeHint"></p>
+        <h3>Flow model</h3>
+        <div class="seg" id="flowSeg" role="radiogroup" aria-label="Flow model">
+          <button data-v="constant" role="radio">Constant flow</button>
+          <button data-v="volume_change" role="radio">Volume change</button>
+        </div>
+        <p class="hint" id="flowHint"></p>
+        <h3>Thermodynamics</h3>
+        <select id="isotherm" aria-label="Isotherm model"></select>
+        <div class="equation" id="isoEq"></div>
+        <p class="hint">Isotherm constants apply at the operating temperature; this model has no temperature dependence.</p>
+      </div>
+    </details>
+
+    <details class="group" open>
+      <summary><span class="g-title">3 · Components</span><span class="g-chip" id="chipComp"></span></summary>
+      <div class="g-body">
+        <p class="hint first">Isotherm (Q<sub>sat</sub>, K), mass transfer (k<sub>LDF</sub>), liquid density, and the volume fractions in feed and desorbent.</p>
+        <div id="compList"></div>
+        <div class="row between">
+          <div class="sums" id="fracSums"></div>
+          <button class="btn small" id="addComp">+ Add component</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="group" open>
+      <summary><span class="g-title">4 · Columns &amp; packing</span><span class="g-chip" id="chipCol"></span></summary>
+      <div class="g-body">
+        <h3>Column size</h3>
+        <div class="grid2">
+          <label class="field"><span>Internal radius r</span><div class="unit"><input type="number" step="any" data-k="radius"><i>cm</i></div></label>
+          <label class="field"><span>Packed length L</span><div class="unit"><input type="number" step="any" data-k="length"><i>cm</i></div></label>
+        </div>
+        <div class="derived-inline" id="dvSize"></div>
+
+        <h3>Porosity</h3>
+        <div class="seg small-full" id="poroSeg">
+          <button data-v="total">Total porosity</button>
+          <button data-v="split">Bed + particle</button>
+        </div>
+        <div class="grid2" id="poroTotal">
+          <label class="field"><span>Total porosity ε<sub>t</sub></span><input type="number" step="any" data-k="porosity_total"></label>
+        </div>
+        <div class="grid2" id="poroSplit">
+          <label class="field"><span>Bed void fraction ε<sub>b</sub></span><input type="number" step="any" data-k="bed_porosity"></label>
+          <label class="field"><span>Particle porosity ε<sub>p</sub></span><input type="number" step="any" data-k="particle_porosity"></label>
+        </div>
+        <div class="derived-inline" id="dvPoro"></div>
+
+        <h3>Axial dispersion</h3>
+        <div class="seg small-full" id="dispSeg">
+          <button data-v="peclet">Péclet number</button>
+          <button data-v="particle">From particle size</button>
+        </div>
+        <div class="grid2" id="dispPe">
+          <label class="field"><span>Column Péclet Pe = uL/D<sub>ax</sub></span><input type="number" step="any" data-k="peclet"></label>
+        </div>
+        <div class="grid2" id="dispDp">
+          <label class="field"><span>Particle diameter d<sub>p</sub></span><div class="unit"><input type="number" step="any" data-k="particle_diameter"><i>µm</i></div></label>
+          <label class="field"><span>Particle Péclet u·d<sub>p</sub>/D<sub>ax</sub></span><input type="number" step="any" data-k="particle_peclet"></label>
+        </div>
+        <div class="derived-inline" id="dvDisp"></div>
+
+        <h3>Extra-column (dead) volume</h3>
+        <div class="grid2">
+          <label class="field"><span>Dead volume as tube length</span><div class="unit"><input type="number" step="any" data-k="dead_length"><i>cm</i></div></label>
+          <label class="field"><span>Grid points in dead volume</span><input type="number" step="1" data-k="dead_nodes"></label>
+        </div>
+        <div class="derived-inline" id="dvDead"></div>
+      </div>
+    </details>
+
+    <details class="group" open>
+      <summary><span class="g-title">5 · Process layout &amp; operation</span><span class="g-chip" id="chipLayout"></span></summary>
+      <div class="g-body">
+        <h3>Layout</h3>
+        <div class="row">
+          <button class="btn small" data-layout="classic">Classic 4-zone</button>
+          <button class="btn small" data-layout="open3">3-zone open loop</button>
+          <button class="btn small" data-layout="five">5-zone, 2 extracts</button>
+        </div>
+        <div class="grid2 top-gap">
+          <label class="field"><span>Recycle</span>
+            <select id="loopSel"><option value="closed">Closed loop</option><option value="open">Open loop</option></select>
+          </label>
+          <label class="field"><span>Number of zones</span><select id="nzSel"></select></label>
+        </div>
+        <div class="layout-strip" id="layoutStrip"></div>
+        <table class="zone-table" id="zoneTable"></table>
+        <p class="hint" id="colCount"></p>
+
+        <h3>Operation</h3>
+        <div class="grid2">
+          <label class="field" id="q1Field"><span>Zone I flow Q<sub>I</sub></span><div class="unit"><input type="number" step="any" data-k="Q1"><i>mL/min</i></div></label>
+          <label class="field"><span>Switch time t*</span><div class="unit"><input type="number" step="any" data-k="step_time"><i>min</i></div></label>
+        </div>
+        <div class="derived" id="derived"></div>
+      </div>
+    </details>
+
+    <details class="group">
+      <summary><span class="g-title">6 · Numerics</span><span class="g-chip" id="chipNum"></span></summary>
+      <div class="g-body">
+        <div class="grid2">
+          <label class="field"><span>Nodes / column (Original)</span><input type="number" step="1" data-k="nodes"></label>
+          <label class="field"><span>Cells / column (Conservative)</span><input type="number" step="1" data-k="cells"></label>
+          <label class="field"><span>Steady-state tolerance</span><input type="number" step="any" data-k="css_tol"></label>
+          <label class="field"><span>Max cycles</span><input type="number" step="1" data-k="max_cycles"></label>
+        </div>
+        <label class="check"><input type="checkbox" data-k="accelerate"> Accelerate convergence to cyclic steady state</label>
+      </div>
+    </details>
+    </div>
+
+    <div class="setup-actions">
+      <div class="errors" id="errors" hidden></div>
+      <button class="btn primary big" id="runBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 4v16l13-8z"/></svg>
+        <span>Run simulation</span>
+      </button>
+      <button class="btn big" id="runBothBtn" title="Run the same case in both numerical modes and compare">Run both numerical modes</button>
+    </div>
+  </aside>
+
+  <!-- ============================== RESULTS ============================== -->
+  <main class="results">
+    <div class="statusbar" id="statusbar">
+      <div class="status-text" id="statusText">Ready. The default case is loaded — press <b>Run simulation</b>.</div>
+      <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+      <button class="btn small" id="cancelBtn" hidden>Cancel</button>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <!-- unit view -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Unit in operation</h2>
+        <div class="seg small" id="unitSeg">
+          <button data-v="process" class="on">Process view</button>
+          <button data-v="ring">Ring view</button>
+        </div>
+        <div class="seg small" id="motionSeg" title="How a switch is shown">
+          <button data-v="valves" class="on" title="As in the plant: columns stay put, the ports move downstream">Valves move</button>
+          <button data-v="bed" title="Equivalent moving bed: ports stay put, the columns move upstream">Bed moves</button>
+        </div>
+        <div class="seg small" id="fillSeg" title="What the column fill shows">
+          <button data-v="solutes" class="on">Solutes</button>
+          <button data-v="all">All components</button>
+        </div>
+        <span class="card-sub push" id="unitSub"></span>
+      </div>
+      <div id="processWrap" class="process-wrap"><canvas id="process" aria-label="Process view of the SMB unit"></canvas></div>
+      <div id="ringWrap" hidden>
+        <div class="ring-row">
+          <div id="ring" class="ring"></div>
+          <div class="ring-side">
+            <div class="ring-legend" id="ringLegend"></div>
+          </div>
+        </div>
+      </div>
+      <div class="process-legend" id="processLegend"></div>
+      <div class="scrubber">
+        <button class="btn icon" id="playBtn" aria-label="Play">
+          <svg viewBox="0 0 24 24" width="16" height="16" id="playIcon"><path fill="currentColor" d="M7 4v16l13-8z"/></svg>
+        </button>
+        <button class="btn icon" id="nextSwitchBtn" aria-label="Jump to the next switch" title="Jump to the next switch">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M5 5v14l9-7zM15 5h3v14h-3z"/></svg>
+        </button>
+        <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Time within the switching period">
+        <span class="scrub-label" id="scrubLabel">t = –</span>
+        <select id="speedSel" class="speed" aria-label="Playback speed"><option value="140">0.5×</option><option value="75" selected>1×</option><option value="35">2×</option></select>
+      </div>
+      <details class="explain">
+        <summary>What happens at a switch?</summary>
+        <p id="switchHint"></p>
+      </details>
+    </section>
+
+    <!-- profiles -->
+    <section class="card">
+      <div class="card-head">
+        <div class="tabs" id="profTabs">
+          <button data-v="axial" class="on">Axial profile</button>
+          <button data-v="column">One column through a cycle</button>
+        </div>
+        <div class="seg small" id="frameSeg" title="Reference frame">
+          <button data-v="ports" class="on" title="Ports stay at fixed positions">Ports fixed</button>
+          <button data-v="lab" title="Columns stay at fixed positions; ports jump at every switch">Columns fixed</button>
+        </div>
+        <div class="seg small" id="profSeg">
+          <button data-v="liquid" class="on">Liquid C</button>
+          <button data-v="solid">Adsorbed q</button>
+          <button data-v="volume">Σ C/ρ</button>
+        </div>
+        <label class="col-pick" id="colPickWrap" hidden>Column <select id="colPick"></select></label>
+      </div>
+      <div class="legend" id="profLegend"></div>
+      <div id="profile" class="chart tall"></div>
+      <p class="card-foot" id="profFoot"></p>
+    </section>
+
+    <div class="grid-2">
+      <!-- products -->
+      <section class="card">
+        <div class="card-head">
+          <div class="tabs" id="prodTabs">
+            <button data-v="outlets" class="on">Outlet histories</button>
+            <button data-v="split">Where components go</button>
+            <button data-v="table">Performance table</button>
+          </div>
+          <div class="seg small" id="outletSeg"></div>
+        </div>
+        <div id="prodOutlets">
+          <div class="legend" id="outLegend"></div>
+          <div id="outChart" class="chart"></div>
+        </div>
+        <div id="prodSplit" hidden><div id="split" class="split"></div><div id="composition" class="split top-gap"></div></div>
+        <div id="prodTable" hidden class="table-wrap"></div>
+      </section>
+
+      <!-- convergence -->
+      <section class="card">
+        <div class="card-head">
+          <div class="tabs" id="convTabs">
+            <button data-v="perf" class="on">Approach to steady state</button>
+            <button data-v="res">Residual</button>
+          </div>
+        </div>
+        <div id="convPerf"><div class="legend" id="convLegend"></div><div id="convChart" class="chart"></div></div>
+        <div id="convRes" hidden><div id="resChart" class="chart"></div></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Run history</h2>
+        <span class="card-sub">Select a run to view it; compare settings and numerical modes side by side</span>
+        <button class="btn small push" id="csvBtn" disabled>Download results (CSV)</button>
+      </div>
+      <div class="table-wrap"><table class="runs" id="runs">
+        <thead><tr><th></th><th>Mode</th><th>Layout</th><th>Flow model</th><th>Extract purity</th><th>Extract recovery</th><th>Raffinate purity</th><th>Raffinate recovery</th><th>Cycles</th><th>Run time</th></tr></thead>
+        <tbody><tr class="empty"><td colspan="10">No runs yet.</td></tr></tbody>
+      </table></div>
+    </section>
+
+    <footer class="foot">
+      Competitive Langmuir isotherm · linear driving force kinetics · axial dispersion · explicit port switching to cyclic steady state.
+      Runs entirely on this computer.
+    </footer>
+  </main>
+</div>
+
+<div class="tooltip" id="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
